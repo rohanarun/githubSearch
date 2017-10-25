@@ -1,0 +1,244 @@
+<html>
+  	<head>
+		<script
+  		src="https://code.jquery.com/jquery-3.2.1.min.js"
+  		integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4="
+  		crossorigin="anonymous"></script>
+  		<title>Github Code Explorer</title>
+
+  	<style>
+    		#input{
+			position:fixed;
+			/* Firefox */
+			top: -moz-calc(10% - 55px);
+			/* WebKit */
+			top: -webkit-calc(10% - 55px);
+			/* Opera */
+			top: -o-calc(10% - 55px);
+			/* Standard */
+			top: calc(10% - 55px);
+			left:20%;
+			z-index:2;
+			width:80%;
+    		}
+    		#code {
+      			position:fixed;
+      			top:10%;
+      			left:20%;
+      			overflow:scroll;
+      			width:80%;
+      			height:60%;
+      			background: #f1f1f1;
+    		}
+    		#explorer {
+      			width:20%;
+			height:60%;
+			left:0px;
+			top:10%;
+			position:fixed;
+    		}
+    		#text{
+    			width:100%;
+    		}
+		#items{
+  			list-style:none;
+  			margin:0px;
+  			margin-top:4px;
+  			padding-left:10px;
+  			padding-right:10px;
+  			padding-bottom:3px;
+  			font-size:17px;
+  			color: #333333;
+  
+		}
+		hr { 
+			width: 85%; 
+  			background-color:#E4E4E4;
+  			border-color:#E4E4E4;
+    			color:#E4E4E4;
+		}
+		#cntnr{
+  			display:none;
+  			z-index:3;
+  			position:fixed;
+  			border:1px solid #B2B2B2;
+  			width:250px;      background:#F9F9F9;
+  			box-shadow: 3px 3px 2px #E9E9E9;
+  			border-radius:4px;
+		}
+
+		li{
+  			padding: 3px;
+  			padding-left:10px;
+		}
+
+
+		#items :hover{
+   			color: white;
+  			background:#284570;
+  			border-radius:2px;
+		}
+		#searchResults{
+			position:fixed;
+			bottom:0px;
+			left:0px;
+			z-index:1;
+			width:100%;
+			height:30%;
+			overflow: scroll;
+		}
+  	</style>
+	</head>
+  	<body>
+		<h3>Github Code Explorer</h3>
+ 		<div id='cntnr'>
+    			<ul id='items'>
+      				<li>Jump-to-Definition</li>
+				<hr />
+      				<li>Show All References</li>
+    			</ul>
+  		</div>
+
+
+		<div id="explorer" style="overflow:scroll;">
+			<h4>File Explorer</h4>
+		</div>	
+		<div id="searchResults"></div>
+		<div id ="input">
+      			<input placeholder="Enter github repo here in the format 'owner/repo'." id="text" type="text">
+			<br>Explore files by clicking the names in the menu on the left. Then select text, and right click to run 'Go-to-Definition' or search for all 'References'. 
+		</div>
+      		<div id="code"></div>
+		<script>
+			/**
+			* Javascript code for the frontend used in the coding exercise for sourcegraph
+			*
+			*/
+
+
+			//Change this to the correct IP if not hosting locally
+			var url = "ws://35.188.181.70:5000/ws";
+			var ws = new WebSocket(url);
+			var code = document.getElementById("code");
+			var text = document.getElementById("text");
+			var results = document.getElementById("searchResults");
+			var selectedText = "";
+
+			//Used to store the file names and contents
+			var fileData = {
+        			"file" : "body"
+			};
+
+			/**
+			* Called when the backend golang script sends data to the frontend using websockets
+			*/
+			ws.onmessage = function (msg) {
+
+			        var line = msg.data + "\n";
+			        var indexFileBody = line.indexOf("newFileBody");
+			        var indexElasticSearch = line.indexOf("Elastic Text:");
+
+			        //The backend sends file names and contents to the frontend using the github REST API. This code appends the links to open them into the file explorer
+			        if(indexFileBody !== -1){
+			                var indexFilePath = line.indexOf("newFilePath");
+
+			                var bodyText = line.substring(indexFileBody + "newFileBody:".length,line.length);
+			                var filePath = line.substring("newFilePath:".length,indexFileBody);
+
+			                fileData[filePath] = bodyText;  
+
+			                $("#explorer").append("<p><a href=\"#\" onclick=\"openCode('" + filePath + "')\">"+ filePath +"</a> </div>")
+			       }
+
+
+			        if(indexElasticSearch !== -1){
+			                searchGroups = line.split("\n");
+			                for (var i = 0; i < searchGroups.length; i++) {
+			                        if(searchGroups[i].indexOf(selectedText) !== -1){
+			                                $("#searchResults").append(line.substring(0, indexElasticSearch) +"<br>" + i + ": " + searchGroups[i] + "<br><hr/>");
+			                        }
+			                }
+			        }
+			};
+
+			/**
+			* When the user enters a repo name in the format ower/repo, this populates the file explorer.
+			*/
+			text.onkeydown = function (e) {
+
+			        if (e.keyCode === 13 && text.value !== "") {
+			                ws.send("repo:" + text.value);
+			                code.innerText = "";
+			                $("#searchResults").empty();
+			                $("#explorer").empty().append("<h4>File Explorer<h4><br>");
+			        }
+			};
+
+			/**
+			* When a file in the file explorer is clicked, this displays the content in the code window.
+			*/
+			function openCode(filePath){
+
+			        code.innerText = "";
+			        code.innerText = fileData[filePath];
+			}
+
+			/**
+			* When the user right clicks, this displays a custom menu to jump-to-definition or search all references.
+			*/
+			$(document).bind("contextmenu",function(e){
+
+			        e.preventDefault();
+			        $("#cntnr").css("left",e.pageX);
+			        $("#cntnr").css("top",e.pageY);
+			        $("#cntnr").fadeIn(200,startFocusOut());
+
+			        var activeEl = document.activeElement;
+			        var activeElTagName = activeEl ? activeEl.tagName.toLowerCase() : null;
+
+			        if (
+			        (activeElTagName == "textarea") || (activeElTagName == "input" &&
+			        /^(?:text|search|password|tel|url)$/i.test(activeEl.type)) &&
+			        (typeof activeEl.selectionStart == "number")
+			        ) {
+
+			                selectedText = activeEl.value.slice(activeEl.selectionStart, activeEl.selectionEnd);
+			        } else if (window.getSelection) {
+
+			                selectedText = window.getSelection().toString();
+			        }
+			});
+			/**
+			* Closes the custome right click menu.
+			*/
+			function startFocusOut(){
+
+			        $(document).on("click",function(){
+			                $("#cntnr").hide();
+			                $(document).off("click");
+			        });
+			}
+
+			/**
+			* When an option in the right click menu is selected, this code executes jump-to-def or search all references.
+			*/
+			$("#items > li").click(function(){
+
+			        if($(this).text() == "Show All References"){
+
+			                //Elasticsearch is configured to tokensize on lowercase, so send lowercased search term
+			                ws.send("search:" + selectedText);
+			                $("#searchResults").empty().append("Search Results:<br>");
+			        }
+
+			        // This currently only works for javascript files, because it prefixes the search term with 'function.' It's trivial to add more languages like this
+			        // TODO: add more language formats using regex for definitions. For example python would use 'def selectedText(*):'
+			        if($(this).text() == "Jump-to-Definition"){
+					selectedText = "function " + selectedText
+			                ws.send("search:" + selectedText);
+			                $("#searchResults").empty().append("Search Results:<br>");
+			        }
+			});
+   		</script>
+  	</body>
+</html>
