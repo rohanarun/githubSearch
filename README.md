@@ -1,3 +1,5 @@
+![](https://github.com/rohanarun/githubSearch/raw/master/github_explorer.gif)
+
 ## Explanation
 This is a web app that pulls source code from GitHub to run search functions. The backend works using the Golang, the Github REST API, and ElasticSearch. This allows developers to search even new repos, and search generally within any code or language on Github. The 'References' function works in all languages, but the 'Go-To-Def' function only works in javascript as a PoC due to time constraints. The frontend relays the user input to the backend go script using websockets, and parses the search results from ElasticSearch into a usable interface. Enter a Github repo in the format 'owner/repo,' and choose a file from the explorer on the left to view it in the code window. Then select text and right click to run the search functions.
 
